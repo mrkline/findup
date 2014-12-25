@@ -2,6 +2,7 @@ import std.algorithm;
 import std.container;
 import std.conv;
 import std.digest.sha;
+import std.exception;
 import std.file;
 import std.range;
 import std.regex;
@@ -94,29 +95,28 @@ void main(string[] args)
 
 		searchSize = captures[2].to!ulong;
 
-		if (!captures[3]) {
+		if (captures[3]) {
 			switch(captures[3]) {
-				case "b":
+				case "b": // blocks
 					searchSize *= 512;
 					break;
 
-				case "c":
-					// Bytes ("chars"?)
+				case "c": // Bytes ("chars"?)
 					break;
 
-				case "w":
+				case "w": // two-byte words
 					searchSize *= 2;
 					break;
 
-				case "k":
+				case "k": // kB
 					searchSize *= 1024;
 					break;
 
-				case "M":
+				case "M": // Megabyte
 					searchSize *= 1024 * 1024;
 					break;
 
-				case "G":
+				case "G": // Gigabyte
 					searchSize *= 1024 * 1024 * 1024;
 					break;
 
@@ -124,6 +124,7 @@ void main(string[] args)
 					assert(false);
 			}
 		}
+
 	}
 
 	// Shave off our the path through which we were executed.
@@ -246,7 +247,16 @@ body
 	void hashAndInsert(ref DirEntry toHash)
 	{
 		SHA1 hasher;
-		foreach (ubyte[] chunk; chunks(File(toHash.name), 4096)) {
+		File fh;
+		try {
+			fh = File(toHash.name);
+		}
+		catch (ErrnoException) {
+			// The file isn't here anymore apparently.
+			// Move along.
+			return;
+		}
+		foreach (ubyte[] chunk; chunks(fh, 4096)) {
 			hasher.put(chunk);
 		}
 		SHA1Hash resultingHash = hasher.finish();
@@ -295,19 +305,16 @@ void printResults()
 {
 	// The comparer never writes a newline (just \r),
 	// so make sure we write at least one before we leave;
-	bool duplicatesFound = !hashMatches.values().filter!(m => m.length > 1).empty();
+	auto duplicates = hashMatches.values().filter!(m => m.length > 1);
 
-	if (!duplicatesFound)
+	if (duplicates.empty)
 		stderr.writeln("\nNo duplicates found");
 	else
 		// The progress indicator never prints a newline. Do so before we leave
 		stderr.writeln();
 
-	foreach (duplicates; hashMatches.values()) {
-		if (duplicates.length < 2)
-			continue;
-
-		foreach(DirEntry match; duplicates) {
+	foreach (set; duplicates) {
+		foreach(DirEntry match; set) {
 			writeln(match.name);
 		}
 		writeln();

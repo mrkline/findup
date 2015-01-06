@@ -7,6 +7,7 @@ import std.file;
 import std.range;
 import std.regex;
 import std.stdio;
+import std.string;
 
 /// SHA1 hashes are 20 bytes long
 alias ubyte[20] SHA1Hash;
@@ -53,6 +54,7 @@ void main(string[] args)
 	import std.c.stdlib;
 
 	string sizeArg;
+	bool printNull;
 
 	getopt(args,
 		std.getopt.config.caseSensitive,
@@ -60,7 +62,8 @@ void main(string[] args)
 		"version|v", { writeln(versionText); exit(0); },
 		"mindepth", &mindepth,
 		"maxdepth", &maxdepth,
-		"size", &sizeArg);
+		"size", &sizeArg,
+		"null|0", &printNull);
 
 	if (mindepth < 0 || maxdepth < 0) {
 		stderr.writeln("A depth cannot be negative.");
@@ -124,24 +127,29 @@ void main(string[] args)
 					assert(false);
 			}
 		}
-
 	}
 
 	// Shave off our the path through which we were executed.
 	args = args[1 .. $];
 
-	// If we don't specify a directory, assume the current one.
-	if (args.empty)
-		args ~= ".";
-
-	foreach (string arg; args)
-		scan(arg);
+	// If we don't specify a directory, read from stdin
+	if (args.empty) {
+		foreach (inLine; stdin.byLine(KeepTerminator.no, printNull ? '\0' : '\n')) {
+			auto entry = DirEntry(strip(inLine).idup);
+			if (entry.isFile)
+				compareAndInsert(entry);
+		}
+	}
+	else {
+		foreach (string arg; args)
+			scan(arg);
+	}
 
 	printResults();
 }
 
 string helpText = q"EOS
-Usage: findup [--mindepth <depth>] [--maxdepth <depth>] [--size <size>] <paths>
+Usage: findup [--mindepth <depth>] [--maxdepth <depth>] [--size <size>] [<paths>]
 
 Searches <paths> for duplicate files, checking first by size, then, if files
 match in size, by SHA1 hash. The likelihood of two files having the same SHA1
@@ -149,6 +157,8 @@ is something like 1 in 2^50, even with the birthday paradox taken into
 consideration, so for now there are no checks of the actual file contents if
 hashes _and_ sizes match.  A flag will probably be added at some point in the
 future if you want to be really sure.
+
+If no paths are provided, paths are read from stdin on a line by line basis.
 
 Options:
 
@@ -184,6 +194,12 @@ Options:
     'M' for Megabytes (units of 1048576 bytes)
     'G' for Gigabytes (units of 1073741824 bytes)
     These suffixes might be somewhat odd, but match POSIX 'find'.
+
+  --null, -0
+    If paths are provided via stdin, assume they are separated by a null
+    character instead of by newline. This is similar to the xargs option
+    of the same name, though it may be needed less often as findup separates
+    input paths by line and not by any whitespace like xargs does.
 EOS";
 
 string versionText = q"EOS

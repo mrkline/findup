@@ -44,6 +44,7 @@ int mindepth = 0;
 int maxdepth = int.max;
 ulong searchSize = 0;
 SizeOperator sizeOp = SizeOperator.greater;
+bool examineVCDirs = false;
 
 SizeMatch[ulong] sizeMatches;
 Array!DirEntry[SHA1Hash] hashMatches;
@@ -56,14 +57,23 @@ void main(string[] args)
 	string sizeArg;
 	bool printNull;
 
-	getopt(args,
-		std.getopt.config.caseSensitive,
-		"help|h", { writeln(helpText); exit(0); },
-		"version|v", { writeln(versionText); exit(0); },
-		"mindepth", &mindepth,
-		"maxdepth", &maxdepth,
-		"size", &sizeArg,
-		"null|0", &printNull);
+	try {
+		getopt(args,
+			config.caseSensitive,
+			config.bundling,
+			"help|h", { writeln(helpText); exit(0); },
+			"version|v", { writeln(versionText); exit(0); },
+			"mindepth", &mindepth,
+			"maxdepth", &maxdepth,
+			"size", &sizeArg,
+			"examine-vc|e", &examineVCDirs,
+			"null|0", &printNull);
+	}
+	catch (GetOptException e) {
+		stderr.writeln(e.msg);
+		stderr.writeln("See findup --help for more information.");
+		exit(1);
+	}
 
 	if (mindepth < 0 || maxdepth < 0) {
 		stderr.writeln("A depth cannot be negative.");
@@ -168,18 +178,6 @@ Options:
   --version, -v
     Display version information and exit.
 
-  --mindepth <depth>
-    Do not consider files at levels less than <depth> (a non-negative integer).
-    --mindepth 0 includes any files provided as command line arguments,
-    whereas --mindepth 1 will skip any files and only search the directories
-    provided as command line arguments.
-
-  --maxdepth <depth>
-    Do not consider files at levels greater than <depth>
-    (an integer greater than or equal to the minimum depth or 0,
-    whichever is larger). --maxdepth 0 means to only check any files provided
-    as command line arguments and ignore any provided directories.
-
   --size <size>
     Only consider files of a given size or range of sizes.
     <size> is provided as [+/-]n[cwbkMG].
@@ -200,6 +198,30 @@ Options:
     character instead of by newline. This is similar to the xargs option
     of the same name, though it may be needed less often as findup separates
     input paths by line and not by any whitespace like xargs does.
+
+  The following flags are used to filter the directories to explore.
+  Note that they are ignored if files are read from stdin since the program
+  doesn't care about directories if it is directly being fed a list of files.
+  (the rationale being that another program, such as find, can already be used
+  to filter which files you want to examine.)
+
+  --mindepth <depth>
+    Do not consider files at levels less than <depth> (a non-negative integer).
+    --mindepth 0 includes any files provided as command line arguments,
+    whereas --mindepth 1 will skip any files and only search the directories
+    provided as command line arguments.
+
+  --maxdepth <depth>
+    Do not consider files at levels greater than <depth>
+    (an integer greater than or equal to the minimum depth or 0,
+    whichever is larger). --maxdepth 0 means to only check any files provided
+    as command line arguments and ignore any provided directories.
+
+  --examine-vc, -e
+    By default, findup ignores version control metadata directories
+    (any directory with any of the following names:
+    .git, .svn, .hg)
+    Pass this flag to examine such directories.
 EOS";
 
 string versionText = q"EOS
@@ -229,10 +251,18 @@ in
 body
 {
 	foreach (DirEntry entry; dirEntries(dir.name, SpanMode.shallow, false)) {
-		if (entry.isFile)
+		if (entry.isFile) {
 			compareAndInsert(entry);
-		else if (entry.isDir && !entry.isSymlink && maxdepth > depth)
-			scanRecurser(entry, depth + 1);
+		}
+		else if (entry.isDir && !entry.isSymlink && maxdepth > depth) {
+			enum vcRegex = ctRegex!`\.(?:git)|(?:svn)|(?:hg)$`;
+
+			// Unless we're told to look in them, ignore VCS directories.
+			if (!examineVCDirs && matchFirst(entry.name, vcRegex))
+				continue;
+			else
+				scanRecurser(entry, depth + 1);
+		}
 	}
 }
 

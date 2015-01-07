@@ -162,11 +162,12 @@ string helpText = q"EOS
 Usage: findup [--mindepth <depth>] [--maxdepth <depth>] [--size <size>] [<paths>]
 
 Searches <paths> for duplicate files, checking first by size, then, if files
-match in size, by SHA1 hash. The likelihood of two files having the same SHA1
-is something like 1 in 2^50, even with the birthday paradox taken into
-consideration, so for now there are no checks of the actual file contents if
-hashes _and_ sizes match.  A flag will probably be added at some point in the
-future if you want to be really sure.
+match in size, by SHA1 hash. Symbolic links are ignored since they can easily
+give a lot of false positives by being "duplicates" of what they link to.
+The likelihood of two files having the same SHA1 is 1 in 5 * 10^31, even with
+the birthday paradox taken into consideration, so for now there are no checks
+of the actual file contents if hashes _and_ sizes match.  A flag will probably
+be added at some point in the future if you want to be really sure.
 
 If no paths are provided, paths are read from stdin on a line by line basis.
 
@@ -337,6 +338,9 @@ in
 }
 body
 {
+	if (e.isSymlink)
+		return false;
+
 	if (sizeOp == SizeOperator.greater)
 		return e.size >= searchSize;
 	else if (sizeOp == SizeOperator.less)

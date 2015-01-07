@@ -303,7 +303,8 @@ body
 			// Move along.
 			return;
 		}
-		foreach (ubyte[] chunk; chunks(fh, 4096)) {
+		// Hash it 1M at a time
+		foreach (ubyte[] chunk; chunks(fh, 1024*1024)) {
 			hasher.put(chunk);
 		}
 		SHA1Hash resultingHash = hasher.finish();

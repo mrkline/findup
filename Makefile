@@ -1,6 +1,7 @@
+DC = dmd
 
 findup: *.d
-	dmd -debug -w -wi -of$@ $^
+	$(DC) -debug -w -wi -of$@ $^
 
 clean:
 	rm *.o findup

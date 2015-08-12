@@ -1,9 +1,18 @@
 DC = dmd
+DFLAGS = -wi -wi
 
-findup: *.d
-	$(DC) -debug -w -wi -of$@ $^
+all: debug
+
+debug: DFLAGS += -debug -unittest -g
+debug: findup
+
+release: DFLAGS += -O -release
+release: findup
+
+findup: findup.d
+	$(DC) $(DFLAGS) -of$@ $^
 
 clean:
-	rm *.o findup
+	rm -f *.o findup
 
-.PHONY: clean
+.PHONY: all debug release clean

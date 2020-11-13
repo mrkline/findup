@@ -1,4 +1,4 @@
-DC = dmd
+DC = ldmd
 DFLAGS = -w -wi
 
 all: debug
@@ -6,7 +6,7 @@ all: debug
 debug: DFLAGS += -debug -unittest -g
 debug: findup
 
-release: DFLAGS += -O -release
+release: DFLAGS += -O -release -mcpu=native
 release: findup
 
 findup: findup.d

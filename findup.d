@@ -52,7 +52,7 @@ Array!DirEntry[SHA1Hash] hashMatches;
 void main(string[] args)
 {
 	import std.getopt;
-	import std.c.stdlib;
+	import core.stdc.stdlib;
 
 	string sizeArg;
 	bool printNull;
